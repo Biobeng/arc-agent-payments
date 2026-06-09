@@ -4,7 +4,7 @@ dotenv.config();
 
 const privateKey = process.env.PRIVATE_KEY;
 if (!privateKey) {
-  console.error("ERROR: PRIVATE_KEY not found. Make sure your .env file exists and has PRIVATE_KEY set.");
+  console.error("ERROR: PRIVATE_KEY not found.");
   process.exit(1);
 }
 const formattedKey = privateKey.startsWith("0x")
@@ -12,17 +12,19 @@ const formattedKey = privateKey.startsWith("0x")
   : (`0x${privateKey}` as `0x${string}`);
 
 const SELLER_BASE_URL = process.env.SELLER_URL || "http://localhost:3000";
-const MIN_GATEWAY_BALANCE = 1_000n;
+const MIN_GATEWAY_BALANCE = 2_000_000n;
 
 class ArcAgent {
-  private client: GatewayClient;
   private name: string;
   private callCount = 0;
   private totalSpent = 0n;
 
   constructor(name: string) {
     this.name = name;
-    this.client = new GatewayClient({
+  }
+
+  private createClient(): GatewayClient {
+    return new GatewayClient({
       chain: "arcTestnet",
       privateKey: formattedKey,
     });
@@ -34,15 +36,13 @@ class ArcAgent {
 
   async initialize() {
     this.log("Initializing agent...");
-
-    const balances = await this.client.getBalances();
-    this.log(
-      `Wallet USDC: ${balances.wallet.formatted} | Gateway balance: ${balances.gateway.formattedAvailable}`
-    );
+    const client = this.createClient();
+    const balances = await client.getBalances();
+    this.log(`Wallet USDC: ${balances.wallet.formatted} | Gateway balance: ${balances.gateway.formattedAvailable}`);
 
     if (balances.gateway.available < MIN_GATEWAY_BALANCE) {
       this.log("Gateway balance low - depositing 1 USDC...");
-      const deposit = await this.client.deposit("1");
+      const deposit = await client.deposit("1");
       this.log(`Deposit confirmed: ${deposit.depositTxHash}`);
     } else {
       this.log("Gateway balance sufficient. No deposit needed.");
@@ -51,55 +51,66 @@ class ArcAgent {
 
   async queryAI(prompt: string): Promise<string> {
     this.log(`Querying AI: "${prompt}"`);
+    const client = this.createClient();
 
-    const { data, status } = await this.client.pay(
-      `${SELLER_BASE_URL}/ai-query`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+    try {
+      const { data, status } = await client.pay(
+        `${SELLER_BASE_URL}/ai-query`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt }),
+        }
+      );
+
+      console.log(`[RESPONSE STATUS] ${status}`);
+
+      if (status !== 200) {
+        console.error(`[PAYMENT FAILED] Response:`, JSON.stringify(data, null, 2));
+        throw new Error(`Payment failed with status ${status}`);
       }
-    );
 
-    if (status !== 200) {
-      throw new Error(`Payment failed with status ${status}`);
+      this.callCount++;
+      this.totalSpent += 1000n;
+      this.log(`AI response received (call #${this.callCount})`);
+      return (data as any).result;
+
+    } catch (err: any) {
+      console.error(`[RAW ERROR]`, err?.message, JSON.stringify(err, null, 2));
+      throw new Error(err?.message || "Unknown payment error");
     }
-
-    this.callCount++;
-    this.totalSpent += 1000n;
-    this.log(`AI response received (call #${this.callCount})`);
-
-    return (data as any).result;
   }
 
   async fetchMarketData(): Promise<Record<string, unknown>> {
     this.log("Fetching paid market data...");
+    const client = this.createClient();
 
-    const { data, status } = await this.client.pay(
-      `${SELLER_BASE_URL}/market-data`
-    );
+    try {
+      const { data, status } = await client.pay(`${SELLER_BASE_URL}/market-data`);
 
-    if (status !== 200) {
-      throw new Error(`Payment failed with status ${status}`);
+      if (status !== 200) {
+        console.error(`[PAYMENT FAILED] Response:`, JSON.stringify(data, null, 2));
+        throw new Error(`Payment failed with status ${status}`);
+      }
+
+      this.callCount++;
+      this.totalSpent += 100n;
+      this.log(`Market data received (call #${this.callCount})`);
+      return (data as any).data;
+
+    } catch (err: any) {
+      console.error(`[RAW ERROR]`, err?.message, JSON.stringify(err, null, 2));
+      throw new Error(err?.message || "Unknown payment error");
     }
-
-    this.callCount++;
-    this.totalSpent += 100n;
-    this.log(`Market data received (call #${this.callCount})`);
-
-    return (data as any).data;
   }
 
   async printSummary() {
-    const balances = await this.client.getBalances();
+    const client = this.createClient();
+    const balances = await client.getBalances();
     console.log(`\nAgent Summary: ${this.name}`);
     console.log(`Total API calls made : ${this.callCount}`);
-    console.log(
-      `Total USDC spent     : $${(Number(this.totalSpent) / 1_000_000).toFixed(6)}`
-    );
-    console.log(
-      `Gateway balance left : ${balances.gateway.formattedAvailable} USDC`
-    );
+    console.log(`Total USDC spent     : $${(Number(this.totalSpent) / 1_000_000).toFixed(6)}`);
+    console.log(`Gateway balance left : ${balances.gateway.formattedAvailable} USDC`);
     console.log(`Wallet USDC          : ${balances.wallet.formatted}\n`);
   }
 }
@@ -109,7 +120,6 @@ async function runAgent() {
   console.log("Powered by Circle Gateway Nanopayments on Arc Testnet\n");
 
   const agent = new ArcAgent("ArcAgent-01");
-
   await agent.initialize();
 
   const queries = [
@@ -121,7 +131,7 @@ async function runAgent() {
   for (const query of queries) {
     const result = await agent.queryAI(query);
     console.log(`   Response: ${result}\n`);
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 3000));
   }
 
   const marketData = await agent.fetchMarketData();

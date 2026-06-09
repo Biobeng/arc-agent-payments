@@ -1,5 +1,5 @@
 import express from "express";
-import { createGatewayMiddleware } from "@circle-fin/x402-batching/server";
+import { createGatewayMiddleware, BatchFacilitatorClient } from "@circle-fin/x402-batching/server";
 import { formatUnits } from "viem";
 
 type PaidRequest = express.Request & {
@@ -15,13 +15,42 @@ type PaidRequest = express.Request & {
 const app = express();
 app.use(express.json());
 
+const SELLER_ADDRESS = "0x713271395e6e144f409317ee0b58652b942c5c6e";
+const FACILITATOR_URL = "https://gateway-api-testnet.circle.com";
+
+// Direct facilitator client for raw settle debugging
+const facilitator = new BatchFacilitatorClient({ url: FACILITATOR_URL });
+
 const gateway = createGatewayMiddleware({
-  sellerAddress: "0x713271395e6e144f409317ee0b58652b942c5c6e",
-  facilitatorUrl: "https://gateway-api-testnet.circle.com",
+  sellerAddress: SELLER_ADDRESS,
+  facilitatorUrl: FACILITATOR_URL,
 });
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "Arc AI Query Service" });
+});
+
+// Debug endpoint - bypasses middleware and calls settle() directly to expose raw errorReason
+app.post("/debug-pay", async (req, res) => {
+  const paymentHeader = req.headers["x-payment"] || req.headers["payment-signature"] || req.headers["authorization"];
+
+  if (!paymentHeader) {
+    return res.status(402).json({
+      error: "No payment header found",
+      hint: "Send request with Payment-Signature or x-payment header"
+    });
+  }
+
+  console.log("[DEBUG] Raw payment header:", paymentHeader);
+
+  try {
+    const settleResponse = await facilitator.settle(paymentHeader as string);
+    console.log("[DEBUG] Raw settle response:", JSON.stringify(settleResponse, null, 2));
+    return res.json({ settleResponse });
+  } catch (err: any) {
+    console.error("[DEBUG] Settle error:", JSON.stringify(err, null, 2));
+    return res.status(500).json({ error: err.message, raw: err });
+  }
 });
 
 app.post("/ai-query", gateway.require("$0.001"), (req: PaidRequest, res) => {
@@ -51,18 +80,6 @@ app.get("/market-data", gateway.require("$0.0001"), (req: PaidRequest, res) => {
   });
 });
 
-// Log all 402 responses to help debug payment failures
-app.use((req, res, next) => {
-  const originalJson = res.json.bind(res);
-  res.json = (body: any) => {
-    if (res.statusCode === 402 || (body && body.reason)) {
-      console.log(`[GATEWAY ERROR] Status: ${res.statusCode}, Body:`, JSON.stringify(body, null, 2));
-    }
-    return originalJson(body);
-  };
-  next();
-});
-
 function generateAIResponse(prompt: string): string {
   const lower = prompt.toLowerCase();
   if (lower.includes("price")) return "Current USDC price on Arc: $1.00.";
@@ -73,6 +90,7 @@ function generateAIResponse(prompt: string): string {
 
 app.listen(3000, () => {
   console.log(`\nArc AI Query Service running at http://localhost:3000`);
-  console.log(`Seller address: 0x713271395e6e144f409317ee0b58652b942c5c6e`);
-  console.log(`Facilitator: https://gateway-api-testnet.circle.com\n`);
+  console.log(`Seller address: ${SELLER_ADDRESS}`);
+  console.log(`Facilitator: ${FACILITATOR_URL}\n`);
+  console.log(`Debug endpoint: POST /debug-pay\n`);
 });

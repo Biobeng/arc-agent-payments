@@ -19,7 +19,7 @@ app.use(express.json());
 
 const SELLER_ADDRESS = process.env.SELLER_ADDRESS;
 if (!SELLER_ADDRESS) {
-  console.error("ERROR: SELLER_ADDRESS is not set in your .env file. Exiting.");
+  console.error("ERROR: SELLER_ADDRESS is not set. Exiting.");
   process.exit(1);
 }
 
@@ -42,8 +42,24 @@ const gateway = createGatewayMiddleware({
   },
 });
 
+// Root landing page so judges can see the API is live
+app.get("/", (_req, res) => {
+  res.json({
+    name: "ArcPay Agent - Seller API",
+    description: "Agent-to-service payment demo on Arc Testnet using Circle Gateway Nanopayments",
+    network: "Arc Testnet (eip155:5042002)",
+    seller: SELLER_ADDRESS,
+    endpoints: {
+      "GET /health": "Free health check",
+      "POST /ai-query": "Paid AI query - costs $0.001 USDC per call",
+      "GET /market-data": "Paid market data - costs $0.0001 USDC per call",
+    },
+    github: "https://github.com/Biobeng/arc-agent-payments",
+  });
+});
+
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", service: "Arc AI Query Service" });
+  res.json({ status: "ok", service: "Arc AI Query Service", network: "Arc Testnet" });
 });
 
 app.post("/ai-query", gateway.require("$0.001"), (req: PaidRequest, res) => {
@@ -91,8 +107,10 @@ function generateAIResponse(prompt: string): string {
   return `Processing query: "${prompt}". Arc's high-throughput infrastructure makes this response instant.`;
 }
 
-app.listen(3000, () => {
-  console.log(`\nArc AI Query Service running at http://localhost:3000`);
+// Use Railway's dynamic PORT or fallback to 3000
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`\nArc AI Query Service running on port ${PORT}`);
   console.log(`Seller address: ${SELLER_ADDRESS}`);
   console.log(`Facilitator: ${FACILITATOR_URL}\n`);
 });

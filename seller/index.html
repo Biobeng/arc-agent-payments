@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ArcPay Agent</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0e1a;
+      --surface: #111827;
+      --border: #1e2d45;
+      --accent: #3b82f6;
+      --accent-dim: #1d4ed8;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --text: #f1f5f9;
+      --muted: #64748b;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'Inter', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* Header */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      background: rgba(10, 14, 26, 0.95);
+      backdrop-filter: blur(10px);
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+
+    .logo-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.05);
+    }
+
+    /* Hero */
+    .hero {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 80px 40px 60px;
+      text-align: center;
+    }
+
+    .hero-eyebrow {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 600;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 span {
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 40px;
+      font-weight: 300;
+    }
+
+    .hero-links {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.15s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover { background: var(--accent-dim); }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Stats bar */
+    .stats {
+      max-width: 900px;
+      margin: 0 auto 60px;
+      padding: 0 40px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .stat {
+      background: var(--surface);
+      padding: 24px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* Main content */
+    .content {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 40px 80px;
+      display: grid;
+      gap: 24px;
+    }
+
+    /* Flow section */
+    .section-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .flow {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .flow-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .flow-header h2 {
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .flow-steps {
+      padding: 8px 0;
+    }
+
+    .flow-step {
+      display: grid;
+      grid-template-columns: 48px 1fr auto;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+
+    .flow-step:last-child { border-bottom: none; }
+    .flow-step:hover { background: rgba(59, 130, 246, 0.03); }
+
+    .step-num {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .step-text {
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .step-actor {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    /* Endpoints */
+    .endpoints {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .endpoint {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .endpoint:last-child { border-bottom: none; }
+
+    .method {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      min-width: 44px;
+      text-align: center;
+    }
+
+    .method.get { background: rgba(16, 185, 129, 0.1); color: var(--green); }
+    .method.post { background: rgba(59, 130, 246, 0.1); color: var(--accent); }
+
+    .endpoint-path {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .endpoint-desc {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .endpoint-price {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .price-free { color: var(--green); }
+    .price-paid { color: var(--yellow); }
+
+    /* Try it panel */
+    .try-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .try-panel-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .try-panel-header h2 { font-size: 15px; font-weight: 500; }
+
+    .try-body { padding: 24px; }
+
+    .try-body p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    .code-block {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: #94a3b8;
+      overflow-x: auto;
+      line-height: 1.7;
+      white-space: pre;
+    }
+
+    .code-comment { color: #475569; }
+    .code-key { color: #7dd3fc; }
+    .code-string { color: #86efac; }
+    .code-number { color: #fcd34d; }
+
+    /* Address card */
+    .address-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .address-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .address-card-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .address-value {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      word-break: break-all;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    footer p {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 12px;
+      font-family: var(--mono);
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 16px 20px; }
+      .hero { padding: 48px 20px 40px; }
+      .content { padding: 0 20px 60px; }
+      .stats { grid-template-columns: 1fr; margin: 0 20px 40px; }
+      .address-grid { grid-template-columns: 1fr; }
+      .flow-step { grid-template-columns: 40px 1fr; }
+      .step-actor { display: none; }
+      footer { flex-direction: column; gap: 8px; padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    ArcPay Agent
+  </div>
+  <div class="status-badge">
+    <div class="logo-dot"></div>
+    Live on Arc Testnet
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <p class="hero-eyebrow">Track 4 &mdash; Agentic Economy on Arc</p>
+    <h1>AI agents that <span>pay for themselves</span></h1>
+    <p>An autonomous agent-to-service payment demo built on Arc Testnet using Circle Gateway Nanopayments and the x402 protocol.</p>
+    <div class="hero-links">
+      <a href="https://github.com/Biobeng/arc-agent-payments" target="_blank" class="btn btn-primary">View on GitHub</a>
+      <a href="/dashboard" class="btn btn-outline">Agent Dashboard</a>
+    </div>
+  </section>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">$0.001</div>
+      <div class="stat-label">Cost per AI query</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">0 gas</div>
+      <div class="stat-label">Per payment</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">eip155:5042002</div>
+      <div class="stat-label">Arc Testnet</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <div>
+      <p class="section-label">How it works</p>
+      <div class="flow">
+        <div class="flow-header">
+          <h2>Payment Flow</h2>
+          <span style="font-family: var(--mono); font-size: 12px; color: var(--muted);">x402 + EIP-3009</span>
+        </div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <span class="step-num">01</span>
+            <span class="step-text">Agent sends a request to a paid endpoint</span>
+            <span class="step-actor">Buyer Agent</span>
+          </div>
+          <div class="flow-step">
+            <span class="step-num">02</span>
+            <span class="step-text">Seller returns HTTP 402 with payment requirements</span>
+            <span class="step-actor">Seller API</span>
+          </div>
+          <div class="flow-step">
+            <span class="step-num">03</span>
+            <span class="step-text">Agent signs an EIP-3009 authorization offchain</span>
+            <span class="step-actor">Buyer Agent</span>
+          </div>
+          <div class="flow-step">
+            <span class="step-num">04</span>
+            <span class="step-text">Agent retries with payment signature attached</span>
+            <span class="step-actor">Buyer Agent</span>
+          </div>
+          <div class="flow-step">
+            <span class="step-num">05</span>
+            <span class="step-text">Gateway verifies and settles the payment</span>
+            <span class="step-actor">Circle Gateway</span>
+          </div>
+          <div class="flow-step">
+            <span class="step-num">06</span>
+            <span class="step-text">Seller serves the response. No gas paid per call.</span>
+            <span class="step-actor">Seller API</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <p class="section-label">API Endpoints</p>
+      <div class="endpoints">
+        <div class="endpoint">
+          <span class="method get">GET</span>
+          <div>
+            <div class="endpoint-path">/health</div>
+            <div class="endpoint-desc">Service health check</div>
+          </div>
+          <span class="endpoint-price price-free">Free</span>
+        </div>
+        <div class="endpoint">
+          <span class="method post">POST</span>
+          <div>
+            <div class="endpoint-path">/ai-query</div>
+            <div class="endpoint-desc">Paid AI query endpoint</div>
+          </div>
+          <span class="endpoint-price price-paid">$0.001 USDC</span>
+        </div>
+        <div class="endpoint">
+          <span class="method get">GET</span>
+          <div>
+            <div class="endpoint-path">/market-data</div>
+            <div class="endpoint-desc">Paid Arc market data</div>
+          </div>
+          <span class="endpoint-price price-paid">$0.0001 USDC</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <p class="section-label">Try it</p>
+      <div class="try-panel">
+        <div class="try-panel-header">
+          <h2>Run the buyer agent</h2>
+          <span style="font-family: var(--mono); font-size: 12px; color: var(--muted);">TypeScript</span>
+        </div>
+        <div class="try-body">
+          <p>Clone the repo, add your buyer wallet private key to <span style="font-family: var(--mono); color: var(--text);">.env</span>, and run the agent. It will fund itself from Gateway, make paid API calls autonomously, and print a cost summary.</p>
+          <div class="code-block"><span class="code-comment"># Clone and install</span>
+git clone https://github.com/Biobeng/arc-agent-payments
+cd arc-agent-payments/buyer
+npm install
+
+<span class="code-comment"># Add your buyer private key</span>
+echo <span class="code-string">"PRIVATE_KEY=0xYOUR_KEY"</span> > .env
+
+<span class="code-comment"># Run the agent</span>
+npm run run-agent</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <p class="section-label">Wallets</p>
+      <div class="address-grid">
+        <div class="address-card">
+          <div class="address-card-label">Seller (receives payments)</div>
+          <div class="address-value" id="seller-address">Loading...</div>
+        </div>
+        <div class="address-card">
+          <div class="address-card-label">Network</div>
+          <div class="address-value">Arc Testnet<br/>eip155:5042002</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer>
+  <p>Built on Arc Testnet &middot; Circle Gateway Nanopayments</p>
+  <a href="https://github.com/Biobeng/arc-agent-payments" target="_blank">github.com/Biobeng/arc-agent-payments</a>
+</footer>
+
+<script>
+  fetch('/health')
+    .then(r => r.json())
+    .then(data => {
+      const dot = document.querySelector('.logo-dot');
+      if (dot) dot.style.background = '#10b981';
+    })
+    .catch(() => {
+      const badge = document.querySelector('.status-badge');
+      if (badge) { badge.style.color = '#ef4444'; badge.style.borderColor = 'rgba(239,68,68,0.3)'; }
+    });
+
+  fetch('/api/info')
+    .then(r => r.json())
+    .then(data => {
+      const el = document.getElementById('seller-address');
+      if (el && data.seller) el.textContent = data.seller;
+    })
+    .catch(() => {
+      const el = document.getElementById('seller-address');
+      if (el) el.textContent = '0x713271395e6e144f409317ee0b58652b942c5c6e';
+    });
+</script>
+
+</body>
+</html>

@@ -2,7 +2,12 @@ import express from "express";
 import { createGatewayMiddleware } from "@circle-fin/x402-batching/server";
 import { formatUnits } from "viem";
 import * as dotenv from "dotenv";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 type PaidRequest = express.Request & {
   payment?: {
@@ -42,18 +47,23 @@ const gateway = createGatewayMiddleware({
   },
 });
 
-// Root landing page so judges can see the API is live
+// Serve the dashboard page
+app.get("/dashboard", (_req, res) => {
+  res.sendFile(join(__dirname, "dashboard.html"));
+});
+
+// Serve the frontend landing page
 app.get("/", (_req, res) => {
+  res.sendFile(join(__dirname, "index.html"));
+});
+
+// API info endpoint for the frontend
+app.get("/api/info", (_req, res) => {
   res.json({
     name: "ArcPay Agent - Seller API",
     description: "Agent-to-service payment demo on Arc Testnet using Circle Gateway Nanopayments",
     network: "Arc Testnet (eip155:5042002)",
     seller: SELLER_ADDRESS,
-    endpoints: {
-      "GET /health": "Free health check",
-      "POST /ai-query": "Paid AI query - costs $0.001 USDC per call",
-      "GET /market-data": "Paid market data - costs $0.0001 USDC per call",
-    },
     github: "https://github.com/Biobeng/arc-agent-payments",
   });
 });
@@ -107,7 +117,6 @@ function generateAIResponse(prompt: string): string {
   return `Processing query: "${prompt}". Arc's high-throughput infrastructure makes this response instant.`;
 }
 
-// Use Railway's dynamic PORT or fallback to 3000
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\nArc AI Query Service running on port ${PORT}`);

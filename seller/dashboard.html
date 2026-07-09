@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ArcPay Agent Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --surface: #f8f9fb;
+      --border: #e5e7eb;
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --green: #059669;
+      --green-light: #ecfdf5;
+      --red: #dc2626;
+      --text: #111827;
+      --muted: #6b7280;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'Inter', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    nav a {
+      font-size: 13px;
+      color: var(--muted);
+      text-decoration: none;
+      margin-left: 24px;
+    }
+
+    nav a:hover { color: var(--text); }
+
+    .main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 48px 32px 80px;
+    }
+
+    .page-title {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .page-subtitle {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 32px;
+    }
+
+    /* Wallet selector */
+    .wallet-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+
+    .wallet-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .wallet-input:focus { border-color: var(--accent); }
+
+    .btn {
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover { background: #1d4ed8; }
+
+    .btn-outline {
+      background: white;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      background: var(--bg);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      font-family: var(--mono);
+      color: var(--text);
+    }
+
+    .stat-value.green { color: var(--green); }
+    .stat-value.blue { color: var(--accent); }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* Section */
+    .section {
+      margin-bottom: 28px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 12px;
+    }
+
+    /* Transaction list */
+    .tx-list {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .tx-item {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+
+    .tx-item:last-child { border-bottom: none; }
+    .tx-item:hover { background: var(--surface); }
+
+    .tx-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .tx-icon.out { background: #fef2f2; }
+    .tx-icon.in { background: var(--green-light); }
+
+    .tx-main {
+      min-width: 0;
+    }
+
+    .tx-desc {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tx-hash {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .tx-right {
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .tx-amount {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .tx-amount.out { color: var(--red); }
+    .tx-amount.in { color: var(--green); }
+
+    .tx-time {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Address display */
+    .address-display {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .address-text {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.1s;
+    }
+
+    .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Empty / loading states */
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+      font-size: 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-msg {
+      color: var(--red);
+      font-size: 13px;
+      padding: 12px 16px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    /* Network badge */
+    .network-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-family: var(--mono);
+    }
+
+    .net-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    footer p { font-size: 12px; color: var(--muted); }
+    footer a { font-size: 12px; color: var(--accent); text-decoration: none; }
+
+    @media (max-width: 600px) {
+      .main { padding: 32px 16px 60px; }
+      header { padding: 14px 16px; }
+      .stats-row { grid-template-columns: 1fr; }
+      .wallet-bar { flex-direction: column; }
+      footer { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="/" class="logo">
+    <div class="logo-icon">A</div>
+    ArcPay Agent
+  </a>
+  <nav>
+    <a href="/">Home</a>
+    <a href="https://github.com/Biobeng/arc-agent-payments" target="_blank">GitHub</a>
+  </nav>
+</header>
+
+<main class="main">
+  <h1 class="page-title">Agent Dashboard</h1>
+  <p class="page-subtitle">Track USDC activity for the ArcPay buyer agent on Arc Testnet</p>
+
+  <div class="wallet-bar">
+    <input
+      class="wallet-input"
+      id="wallet-input"
+      type="text"
+      placeholder="Enter wallet address (0x...)"
+      value="0x5d240e8a07635a105f5905326c2abc44bf2aa0ae"
+    />
+    <button class="btn btn-primary" onclick="loadWallet()">Load</button>
+    <button class="btn btn-outline" onclick="loadDefault()">Load Agent Wallet</button>
+  </div>
+
+  <div id="error-container"></div>
+
+  <div id="dashboard" style="display:none">
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">USDC Balance</div>
+        <div class="stat-value green" id="usdc-balance">...</div>
+        <div class="stat-sub">On Arc Testnet</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Paid Out</div>
+        <div class="stat-value blue" id="total-paid">...</div>
+        <div class="stat-sub">Across all calls</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Network</div>
+        <div class="stat-value" style="font-size:14px; margin-top: 4px;">
+          <span class="network-badge"><span class="net-dot"></span>Arc Testnet</span>
+        </div>
+        <div class="stat-sub">eip155:5042002</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Wallet Address</div>
+      <div class="address-display">
+        <div class="address-text" id="display-address"></div>
+        <button class="copy-btn" onclick="copyAddress()">Copy</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Recent Transactions</div>
+      <div id="tx-container">
+        <div class="empty-state"><span class="loading"></span> Loading transactions...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="initial-state" style="text-align:center; padding: 60px 0; color: var(--muted); font-size: 14px;">
+    Enter a wallet address above or click "Load Agent Wallet" to get started.
+  </div>
+
+</main>
+
+<footer>
+  <p>ArcPay Agent - Built on Arc Testnet</p>
+  <a href="https://github.com/Biobeng/arc-agent-payments" target="_blank">View source on GitHub</a>
+</footer>
+
+<script type="module">
+  const ARC_TESTNET_RPC = "https://rpc.arc.testnet.nodary.io";
+  const USDC_CONTRACT = "0x9999f7Fea5938fD3b1E26A12c3f2fb024e194f97"; // Arc Testnet USDC
+
+  // Simple RPC call helper
+  async function rpc(method, params) {
+    const res = await fetch(ARC_TESTNET_RPC, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.result;
+  }
+
+  // ERC20 balanceOf call
+  async function getUSDCBalance(address) {
+    const data = "0x70a08231" + address.slice(2).padStart(64, "0");
+    const result = await rpc("eth_call", [{ to: USDC_CONTRACT, data }, "latest"]);
+    const raw = BigInt(result);
+    return (Number(raw) / 1e6).toFixed(6);
+  }
+
+  // Get recent blocks and scan for transactions
+  async function getRecentTxs(address) {
+    const latestHex = await rpc("eth_blockNumber", []);
+    const latest = parseInt(latestHex, 16);
+    const txs = [];
+
+    // Check last 50 blocks
+    const from = Math.max(0, latest - 50);
+    const fromHex = "0x" + from.toString(16);
+
+    // Get USDC Transfer logs for this address
+    const transferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+    const addressTopic = "0x" + address.slice(2).padStart(64, "0");
+
+    try {
+      // Outgoing transfers
+      const outLogs = await rpc("eth_getLogs", [{
+        fromBlock: fromHex,
+        toBlock: "latest",
+        address: USDC_CONTRACT,
+        topics: [transferTopic, addressTopic]
+      }]);
+
+      // Incoming transfers
+      const inLogs = await rpc("eth_getLogs", [{
+        fromBlock: fromHex,
+        toBlock: "latest",
+        address: USDC_CONTRACT,
+        topics: [transferTopic, null, addressTopic]
+      }]);
+
+      const allLogs = [
+        ...outLogs.map(l => ({ ...l, direction: "out" })),
+        ...inLogs.map(l => ({ ...l, direction: "in" }))
+      ].sort((a, b) => parseInt(b.blockNumber, 16) - parseInt(a.blockNumber, 16));
+
+      for (const log of allLogs.slice(0, 20)) {
+        const amount = (Number(BigInt(log.data)) / 1e6).toFixed(6);
+        const block = parseInt(log.blockNumber, 16);
+        txs.push({
+          hash: log.transactionHash,
+          direction: log.direction,
+          amount,
+          block,
+          from: "0x" + log.topics[1].slice(26),
+          to: "0x" + log.topics[2].slice(26),
+        });
+      }
+    } catch (e) {
+      console.warn("Log fetch failed:", e.message);
+    }
+
+    return txs;
+  }
+
+  function shortHash(hash) {
+    return hash.slice(0, 10) + "..." + hash.slice(-8);
+  }
+
+  function shortAddr(addr) {
+    return addr.slice(0, 8) + "..." + addr.slice(-6);
+  }
+
+  function timeAgo(block, latestBlock) {
+    const diff = latestBlock - block;
+    const seconds = diff * 2; // ~2s block time on Arc
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    return `${Math.floor(seconds / 3600)}h ago`;
+  }
+
+  window.currentAddress = "";
+  window.latestBlock = 0;
+
+  window.loadDefault = function() {
+    document.getElementById("wallet-input").value = "0x5d240e8a07635a105f5905326c2abc44bf2aa0ae";
+    loadWallet();
+  };
+
+  window.copyAddress = function() {
+    navigator.clipboard.writeText(window.currentAddress);
+    const btn = document.querySelector(".copy-btn");
+    btn.textContent = "Copied!";
+    setTimeout(() => btn.textContent = "Copy", 1500);
+  };
+
+  window.loadWallet = async function() {
+    const input = document.getElementById("wallet-input").value.trim();
+    if (!input || !input.startsWith("0x")) {
+      showError("Please enter a valid wallet address starting with 0x");
+      return;
+    }
+
+    clearError();
+    window.currentAddress = input;
+
+    document.getElementById("initial-state").style.display = "none";
+    document.getElementById("dashboard").style.display = "block";
+    document.getElementById("display-address").textContent = input;
+    document.getElementById("usdc-balance").textContent = "...";
+    document.getElementById("total-paid").textContent = "...";
+    document.getElementById("tx-container").innerHTML = '<div class="empty-state"><span class="loading"></span> Loading...</div>';
+
+    try {
+      const latestHex = await rpc("eth_blockNumber", []);
+      window.latestBlock = parseInt(latestHex, 16);
+
+      const balance = await getUSDCBalance(input);
+      document.getElementById("usdc-balance").textContent = balance + " USDC";
+
+      const txs = await getRecentTxs(input);
+
+      let totalPaid = 0;
+      txs.filter(t => t.direction === "out").forEach(t => totalPaid += parseFloat(t.amount));
+      document.getElementById("total-paid").textContent = "$" + totalPaid.toFixed(6);
+
+      if (txs.length === 0) {
+        document.getElementById("tx-container").innerHTML = '<div class="empty-state">No recent USDC transactions found in the last 50 blocks.</div>';
+        return;
+      }
+
+      const html = txs.map(tx => `
+        <div class="tx-item">
+          <div class="tx-icon ${tx.direction}">${tx.direction === "out" ? "↑" : "↓"}</div>
+          <div class="tx-main">
+            <div class="tx-desc">${tx.direction === "out" ? "Paid to " + shortAddr(tx.to) : "Received from " + shortAddr(tx.from)}</div>
+            <div class="tx-hash">${shortHash(tx.hash)}</div>
+          </div>
+          <div class="tx-right">
+            <div class="tx-amount ${tx.direction}">${tx.direction === "out" ? "-" : "+"}${tx.amount} USDC</div>
+            <div class="tx-time">Block ${tx.block}</div>
+          </div>
+        </div>
+      `).join("");
+
+      document.getElementById("tx-container").innerHTML = `<div class="tx-list">${html}</div>`;
+
+    } catch (err) {
+      showError("Could not load wallet data. Check the address and try again. (" + err.message + ")");
+      document.getElementById("tx-container").innerHTML = '<div class="empty-state">Failed to load transactions.</div>';
+    }
+  };
+
+  function showError(msg) {
+    document.getElementById("error-container").innerHTML = `<div class="error-msg">${msg}</div>`;
+  }
+
+  function clearError() {
+    document.getElementById("error-container").innerHTML = "";
+  }
+
+  // Auto-load default wallet on page load
+  loadDefault();
+</script>
+
+</body>
+</html>

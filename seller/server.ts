@@ -117,9 +117,25 @@ function generateAIResponse(prompt: string): string {
   return `Processing query: "${prompt}". Arc's high-throughput infrastructure makes this response instant.`;
 }
 
+// RPC proxy - avoids CORS issues from the dashboard frontend
+app.post("/rpc", async (req, res) => {
+  try {
+    const response = await fetch("https://rpc.arc.testnet.nodary.io", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\nArc AI Query Service running on port ${PORT}`);
   console.log(`Seller address: ${SELLER_ADDRESS}`);
   console.log(`Facilitator: ${FACILITATOR_URL}\n`);
 });
+

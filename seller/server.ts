@@ -120,7 +120,7 @@ function generateAIResponse(prompt: string): string {
 // RPC proxy - avoids CORS issues from the dashboard frontend
 app.post("/rpc", async (req, res) => {
   try {
-    const response = await fetch("https://rpc.arc.testnet.nodary.io", {
+    const response = await fetch("https://rpc.testnet.arc.network", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req.body),

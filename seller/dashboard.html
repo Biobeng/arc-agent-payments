@@ -450,7 +450,7 @@
 
 <script type="module">
   const ARC_TESTNET_RPC = "/rpc";
-  const USDC_CONTRACT = "0x9999f7Fea5938fD3b1E26A12c3f2fb024e194f97"; // Arc Testnet USDC
+  const USDC_CONTRACT = "0x3600000000000000000000000000000000000000"; // Arc Testnet USDC
 
   // Simple RPC call helper
   async function rpc(method, params) {
@@ -468,6 +468,7 @@
   async function getUSDCBalance(address) {
     const data = "0x70a08231" + address.slice(2).padStart(64, "0");
     const result = await rpc("eth_call", [{ to: USDC_CONTRACT, data }, "latest"]);
+    if (!result || result === "0x" || result === "0x0") return "0.000000";
     const raw = BigInt(result);
     return (Number(raw) / 1e6).toFixed(6);
   }

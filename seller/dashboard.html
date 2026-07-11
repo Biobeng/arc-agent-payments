@@ -480,7 +480,7 @@
     const txs = [];
 
     // Check last 50 blocks
-    const from = Math.max(0, latest - 50);
+    const from = Math.max(0, latest - 5000);
     const fromHex = "0x" + from.toString(16);
 
     // Get USDC Transfer logs for this address
@@ -590,7 +590,7 @@
       document.getElementById("total-paid").textContent = "$" + totalPaid.toFixed(6);
 
       if (txs.length === 0) {
-        document.getElementById("tx-container").innerHTML = '<div class="empty-state">No recent USDC transactions found in the last 50 blocks.</div>';
+        document.getElementById("tx-container").innerHTML = '<div class="empty-state">No recent USDC transactions found in the last 5000 blocks.</div>';
         return;
       }
 

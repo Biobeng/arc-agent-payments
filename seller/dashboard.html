@@ -471,35 +471,52 @@
     return (Number(raw) / 1e6).toFixed(6);
   }
 
-  async function getTxHistory(address) {
-    const res = await fetch(`/explorer/${address}/transactions`);
-    const data = await res.json();
-    return data.items || [];
+  async function getRecentTxs(address) {
+    const latestHex = await rpc("eth_blockNumber", []);
+    const latest = parseInt(latestHex, 16);
+    const txs = [];
+    const addrLower = address.toLowerCase();
+    const scanFrom = Math.max(0, latest - 50);
+
+    // Fetch all 50 blocks in parallel
+    const blockNums = [];
+    for (let b = latest; b >= scanFrom; b--) blockNums.push(b);
+
+    const blocks = await Promise.all(
+      blockNums.map(b => rpc("eth_getBlockByNumber", ["0x" + b.toString(16), true]).catch(() => null))
+    );
+
+    for (const block of blocks) {
+      if (!block || !block.transactions) continue;
+      for (const tx of block.transactions) {
+        if (!tx) continue;
+        const from = (tx.from || "").toLowerCase();
+        const to = (tx.to || "").toLowerCase();
+        if (from === addrLower || to === addrLower) {
+          const value = tx.value ? BigInt(tx.value) : 0n;
+          if (value > 0n) {
+            txs.push({
+              hash: tx.hash,
+              direction: from === addrLower ? "out" : "in",
+              amount: (Number(value) / 1e6).toFixed(6),
+              block: parseInt(tx.blockNumber, 16),
+              from: tx.from,
+              to: tx.to || "Contract",
+            });
+          }
+        }
+      }
+      if (txs.length >= 15) break;
+    }
+    return txs;
   }
 
   function shortHash(hash) {
-    if (!hash) return "Unknown";
-    return hash.slice(0, 10) + "..." + hash.slice(-8);
+    return hash ? hash.slice(0, 10) + "..." + hash.slice(-8) : "Unknown";
   }
 
   function shortAddr(addr) {
-    if (!addr) return "Unknown";
-    return addr.slice(0, 8) + "..." + addr.slice(-6);
-  }
-
-  function formatValue(raw) {
-    if (!raw) return "0.000000";
-    // Arc uses 6 decimals for USDC native
-    return (Number(BigInt(raw)) / 1e6).toFixed(6);
-  }
-
-  function timeAgo(timestamp) {
-    if (!timestamp) return "";
-    const diff = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
+    return addr ? addr.slice(0, 8) + "..." + addr.slice(-6) : "Unknown";
   }
 
   window.currentAddress = "";
@@ -531,71 +548,52 @@
     document.getElementById("display-address").textContent = input;
     document.getElementById("usdc-balance").textContent = "...";
     document.getElementById("total-paid").textContent = "...";
-    document.getElementById("tx-container").innerHTML = '<div class="empty-state"><span class="loading"></span> Loading transactions...</div>';
+    document.getElementById("tx-container").innerHTML = '<div class="empty-state"><span class="loading"></span> Loading last 50 blocks...</div>';
 
     try {
-      const [balance, txItems] = await Promise.all([
+      const [balance, txs] = await Promise.all([
         getUSDCBalance(input),
-        getTxHistory(input)
+        getRecentTxs(input)
       ]);
 
       document.getElementById("usdc-balance").textContent = balance + " USDC";
 
-      const addrLower = input.toLowerCase();
-
-      // Calculate total sent
       let totalPaid = 0;
-      txItems.forEach(tx => {
-        if ((tx.from?.hash || "").toLowerCase() === addrLower && tx.value) {
-          totalPaid += Number(BigInt(tx.value)) / 1e6;
-        }
-      });
+      txs.filter(t => t.direction === "out").forEach(t => totalPaid += parseFloat(t.amount));
       document.getElementById("total-paid").textContent = "$" + totalPaid.toFixed(6);
 
-      if (txItems.length === 0) {
+      if (txs.length === 0) {
         document.getElementById("tx-container").innerHTML = `
           <div class="empty-state">
-            No transactions found yet. Run the agent to generate activity.
+            No transactions in the last 50 blocks.
             <br/><br/>
             <a href="${EXPLORER_BASE}/address/${input}" target="_blank" style="color: var(--accent); font-size: 13px;">
-              View on Arc Testnet Explorer →
+              View full history on Arc Explorer →
             </a>
-          </div>
-        `;
+          </div>`;
         return;
       }
 
-      const html = txItems.slice(0, 15).map(tx => {
-        const from = (tx.from?.hash || "").toLowerCase();
-        const direction = from === addrLower ? "out" : "in";
-        const amount = formatValue(tx.value);
-        const time = timeAgo(tx.timestamp);
-        const toAddr = tx.to?.hash || "Contract";
-        const fromAddr = tx.from?.hash || "Unknown";
-
-        return `
-          <div class="tx-item">
-            <div class="tx-icon ${direction}">${direction === "out" ? "↑" : "↓"}</div>
-            <div class="tx-main">
-              <div class="tx-desc">${direction === "out" ? "Paid to " + shortAddr(toAddr) : "Received from " + shortAddr(fromAddr)}</div>
-              <div class="tx-hash">${shortHash(tx.hash)}</div>
-            </div>
-            <div class="tx-right">
-              <div class="tx-amount ${direction}">${direction === "out" ? "-" : "+"}${amount} USDC</div>
-              <div class="tx-time">${time}</div>
-            </div>
+      const html = txs.map(tx => `
+        <div class="tx-item">
+          <div class="tx-icon ${tx.direction}">${tx.direction === "out" ? "↑" : "↓"}</div>
+          <div class="tx-main">
+            <div class="tx-desc">${tx.direction === "out" ? "Paid to " + shortAddr(tx.to) : "Received from " + shortAddr(tx.from)}</div>
+            <div class="tx-hash">${shortHash(tx.hash)}</div>
           </div>
-        `;
-      }).join("");
+          <div class="tx-right">
+            <div class="tx-amount ${tx.direction}">${tx.direction === "out" ? "-" : "+"}${tx.amount} USDC</div>
+            <div class="tx-time">Block ${tx.block}</div>
+          </div>
+        </div>`).join("");
 
       document.getElementById("tx-container").innerHTML = `
         <div class="tx-list">${html}</div>
         <div style="padding: 12px 16px; text-align: center; border-top: 1px solid var(--border);">
           <a href="${EXPLORER_BASE}/address/${input}" target="_blank" style="font-size: 12px; color: var(--accent); text-decoration: none;">
-            View full history on Arc Testnet Explorer →
+            View full history on Arc Explorer →
           </a>
-        </div>
-      `;
+        </div>`;
 
     } catch (err) {
       showError("Could not load wallet data. (" + err.message + ")");

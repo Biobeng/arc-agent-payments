@@ -449,12 +449,12 @@
 </footer>
 
 <script type="module">
-  const ARC_TESTNET_RPC = "/rpc";
-  const USDC_CONTRACT = "0x3600000000000000000000000000000000000000"; // Arc Testnet USDC
+  // Arc Testnet - USDC is native, not standard ERC-20
+  // We use the ERC-20 interface address for balance checks
+  // But for transfers we scan block transactions directly
 
-  // Simple RPC call helper
   async function rpc(method, params) {
-    const res = await fetch(ARC_TESTNET_RPC, {
+    const res = await fetch("/rpc", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
@@ -464,65 +464,57 @@
     return data.result;
   }
 
-  // ERC20 balanceOf call
+  const USDC_ERC20 = "0x3600000000000000000000000000000000000000";
+
   async function getUSDCBalance(address) {
     const data = "0x70a08231" + address.slice(2).padStart(64, "0");
-    const result = await rpc("eth_call", [{ to: USDC_CONTRACT, data }, "latest"]);
+    const result = await rpc("eth_call", [{ to: USDC_ERC20, data }, "latest"]);
     if (!result || result === "0x" || result === "0x0") return "0.000000";
     const raw = BigInt(result);
     return (Number(raw) / 1e6).toFixed(6);
   }
 
-  // Get recent blocks and scan for transactions
+  async function getBlock(blockNum) {
+    return await rpc("eth_getBlockByNumber", ["0x" + blockNum.toString(16), true]);
+  }
+
   async function getRecentTxs(address) {
     const latestHex = await rpc("eth_blockNumber", []);
     const latest = parseInt(latestHex, 16);
     const txs = [];
+    const addrLower = address.toLowerCase();
 
-    // Check last 50 blocks
-    const from = Math.max(0, latest - 5000);
-    const fromHex = "0x" + from.toString(16);
+    // Scan last 200 blocks for transactions involving this address
+    const scanFrom = Math.max(0, latest - 200);
 
-    // Get USDC Transfer logs for this address
-    const transferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-    const addressTopic = "0x" + address.slice(2).padStart(64, "0");
+    for (let b = latest; b >= scanFrom && txs.length < 20; b--) {
+      try {
+        const block = await getBlock(b);
+        if (!block || !block.transactions) continue;
 
-    try {
-      // Outgoing transfers
-      const outLogs = await rpc("eth_getLogs", [{
-        fromBlock: fromHex,
-        toBlock: "latest",
-        address: USDC_CONTRACT,
-        topics: [transferTopic, addressTopic]
-      }]);
+        for (const tx of block.transactions) {
+          if (!tx) continue;
+          const from = (tx.from || "").toLowerCase();
+          const to = (tx.to || "").toLowerCase();
 
-      // Incoming transfers
-      const inLogs = await rpc("eth_getLogs", [{
-        fromBlock: fromHex,
-        toBlock: "latest",
-        address: USDC_CONTRACT,
-        topics: [transferTopic, null, addressTopic]
-      }]);
-
-      const allLogs = [
-        ...outLogs.map(l => ({ ...l, direction: "out" })),
-        ...inLogs.map(l => ({ ...l, direction: "in" }))
-      ].sort((a, b) => parseInt(b.blockNumber, 16) - parseInt(a.blockNumber, 16));
-
-      for (const log of allLogs.slice(0, 20)) {
-        const amount = (Number(BigInt(log.data)) / 1e6).toFixed(6);
-        const block = parseInt(log.blockNumber, 16);
-        txs.push({
-          hash: log.transactionHash,
-          direction: log.direction,
-          amount,
-          block,
-          from: "0x" + log.topics[1].slice(26),
-          to: "0x" + log.topics[2].slice(26),
-        });
+          if (from === addrLower || to === addrLower) {
+            // Check if value is non-zero (USDC transfer)
+            const value = tx.value ? BigInt(tx.value) : 0n;
+            if (value > 0n) {
+              txs.push({
+                hash: tx.hash,
+                direction: from === addrLower ? "out" : "in",
+                amount: (Number(value) / 1e6).toFixed(6),
+                block: parseInt(tx.blockNumber, 16),
+                from: tx.from,
+                to: tx.to || "Contract",
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // skip block on error
       }
-    } catch (e) {
-      console.warn("Log fetch failed:", e.message);
     }
 
     return txs;
@@ -533,19 +525,11 @@
   }
 
   function shortAddr(addr) {
+    if (!addr) return "Unknown";
     return addr.slice(0, 8) + "..." + addr.slice(-6);
   }
 
-  function timeAgo(block, latestBlock) {
-    const diff = latestBlock - block;
-    const seconds = diff * 2; // ~2s block time on Arc
-    if (seconds < 60) return `${seconds}s ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    return `${Math.floor(seconds / 3600)}h ago`;
-  }
-
   window.currentAddress = "";
-  window.latestBlock = 0;
 
   window.loadDefault = function() {
     document.getElementById("wallet-input").value = "0x5d240e8a07635a105f5905326c2abc44bf2aa0ae";
@@ -574,12 +558,9 @@
     document.getElementById("display-address").textContent = input;
     document.getElementById("usdc-balance").textContent = "...";
     document.getElementById("total-paid").textContent = "...";
-    document.getElementById("tx-container").innerHTML = '<div class="empty-state"><span class="loading"></span> Loading...</div>';
+    document.getElementById("tx-container").innerHTML = '<div class="empty-state"><span class="loading"></span> Loading transactions (scanning last 200 blocks)...</div>';
 
     try {
-      const latestHex = await rpc("eth_blockNumber", []);
-      window.latestBlock = parseInt(latestHex, 16);
-
       const balance = await getUSDCBalance(input);
       document.getElementById("usdc-balance").textContent = balance + " USDC";
 
@@ -590,7 +571,7 @@
       document.getElementById("total-paid").textContent = "$" + totalPaid.toFixed(6);
 
       if (txs.length === 0) {
-        document.getElementById("tx-container").innerHTML = '<div class="empty-state">No recent USDC transactions found in the last 5000 blocks.</div>';
+        document.getElementById("tx-container").innerHTML = '<div class="empty-state">No recent USDC transactions found in the last 200 blocks. Run the agent to generate activity.</div>';
         return;
       }
 
@@ -611,7 +592,7 @@
       document.getElementById("tx-container").innerHTML = `<div class="tx-list">${html}</div>`;
 
     } catch (err) {
-      showError("Could not load wallet data. Check the address and try again. (" + err.message + ")");
+      showError("Could not load wallet data. (" + err.message + ")");
       document.getElementById("tx-container").innerHTML = '<div class="empty-state">Failed to load transactions.</div>';
     }
   };
@@ -624,7 +605,6 @@
     document.getElementById("error-container").innerHTML = "";
   }
 
-  // Auto-load default wallet on page load
   loadDefault();
 </script>
 

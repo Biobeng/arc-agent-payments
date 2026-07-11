@@ -449,9 +449,8 @@
 </footer>
 
 <script type="module">
-  // Arc Testnet - USDC is native, not standard ERC-20
-  // We use the ERC-20 interface address for balance checks
-  // But for transfers we scan block transactions directly
+  const USDC_ERC20 = "0x3600000000000000000000000000000000000000";
+  const EXPLORER_BASE = "https://testnet.arcscan.app";
 
   async function rpc(method, params) {
     const res = await fetch("/rpc", {
@@ -464,8 +463,6 @@
     return data.result;
   }
 
-  const USDC_ERC20 = "0x3600000000000000000000000000000000000000";
-
   async function getUSDCBalance(address) {
     const data = "0x70a08231" + address.slice(2).padStart(64, "0");
     const result = await rpc("eth_call", [{ to: USDC_ERC20, data }, "latest"]);
@@ -474,59 +471,35 @@
     return (Number(raw) / 1e6).toFixed(6);
   }
 
-  async function getBlock(blockNum) {
-    return await rpc("eth_getBlockByNumber", ["0x" + blockNum.toString(16), true]);
-  }
-
-  async function getRecentTxs(address) {
-    const latestHex = await rpc("eth_blockNumber", []);
-    const latest = parseInt(latestHex, 16);
-    const txs = [];
-    const addrLower = address.toLowerCase();
-
-    // Scan last 200 blocks for transactions involving this address
-    const scanFrom = Math.max(0, latest - 200);
-
-    for (let b = latest; b >= scanFrom && txs.length < 20; b--) {
-      try {
-        const block = await getBlock(b);
-        if (!block || !block.transactions) continue;
-
-        for (const tx of block.transactions) {
-          if (!tx) continue;
-          const from = (tx.from || "").toLowerCase();
-          const to = (tx.to || "").toLowerCase();
-
-          if (from === addrLower || to === addrLower) {
-            // Check if value is non-zero (USDC transfer)
-            const value = tx.value ? BigInt(tx.value) : 0n;
-            if (value > 0n) {
-              txs.push({
-                hash: tx.hash,
-                direction: from === addrLower ? "out" : "in",
-                amount: (Number(value) / 1e6).toFixed(6),
-                block: parseInt(tx.blockNumber, 16),
-                from: tx.from,
-                to: tx.to || "Contract",
-              });
-            }
-          }
-        }
-      } catch (e) {
-        // skip block on error
-      }
-    }
-
-    return txs;
+  async function getTxHistory(address) {
+    const res = await fetch(`/explorer/${address}/transactions`);
+    const data = await res.json();
+    return data.items || [];
   }
 
   function shortHash(hash) {
+    if (!hash) return "Unknown";
     return hash.slice(0, 10) + "..." + hash.slice(-8);
   }
 
   function shortAddr(addr) {
     if (!addr) return "Unknown";
     return addr.slice(0, 8) + "..." + addr.slice(-6);
+  }
+
+  function formatValue(raw) {
+    if (!raw) return "0.000000";
+    // Arc uses 6 decimals for USDC native
+    return (Number(BigInt(raw)) / 1e6).toFixed(6);
+  }
+
+  function timeAgo(timestamp) {
+    if (!timestamp) return "";
+    const diff = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
   }
 
   window.currentAddress = "";
@@ -558,38 +531,71 @@
     document.getElementById("display-address").textContent = input;
     document.getElementById("usdc-balance").textContent = "...";
     document.getElementById("total-paid").textContent = "...";
-    document.getElementById("tx-container").innerHTML = '<div class="empty-state"><span class="loading"></span> Loading transactions (scanning last 200 blocks)...</div>';
+    document.getElementById("tx-container").innerHTML = '<div class="empty-state"><span class="loading"></span> Loading transactions...</div>';
 
     try {
-      const balance = await getUSDCBalance(input);
+      const [balance, txItems] = await Promise.all([
+        getUSDCBalance(input),
+        getTxHistory(input)
+      ]);
+
       document.getElementById("usdc-balance").textContent = balance + " USDC";
 
-      const txs = await getRecentTxs(input);
+      const addrLower = input.toLowerCase();
 
+      // Calculate total sent
       let totalPaid = 0;
-      txs.filter(t => t.direction === "out").forEach(t => totalPaid += parseFloat(t.amount));
+      txItems.forEach(tx => {
+        if ((tx.from?.hash || "").toLowerCase() === addrLower && tx.value) {
+          totalPaid += Number(BigInt(tx.value)) / 1e6;
+        }
+      });
       document.getElementById("total-paid").textContent = "$" + totalPaid.toFixed(6);
 
-      if (txs.length === 0) {
-        document.getElementById("tx-container").innerHTML = '<div class="empty-state">No recent USDC transactions found in the last 200 blocks. Run the agent to generate activity.</div>';
+      if (txItems.length === 0) {
+        document.getElementById("tx-container").innerHTML = `
+          <div class="empty-state">
+            No transactions found yet. Run the agent to generate activity.
+            <br/><br/>
+            <a href="${EXPLORER_BASE}/address/${input}" target="_blank" style="color: var(--accent); font-size: 13px;">
+              View on Arc Testnet Explorer →
+            </a>
+          </div>
+        `;
         return;
       }
 
-      const html = txs.map(tx => `
-        <div class="tx-item">
-          <div class="tx-icon ${tx.direction}">${tx.direction === "out" ? "↑" : "↓"}</div>
-          <div class="tx-main">
-            <div class="tx-desc">${tx.direction === "out" ? "Paid to " + shortAddr(tx.to) : "Received from " + shortAddr(tx.from)}</div>
-            <div class="tx-hash">${shortHash(tx.hash)}</div>
-          </div>
-          <div class="tx-right">
-            <div class="tx-amount ${tx.direction}">${tx.direction === "out" ? "-" : "+"}${tx.amount} USDC</div>
-            <div class="tx-time">Block ${tx.block}</div>
-          </div>
-        </div>
-      `).join("");
+      const html = txItems.slice(0, 15).map(tx => {
+        const from = (tx.from?.hash || "").toLowerCase();
+        const direction = from === addrLower ? "out" : "in";
+        const amount = formatValue(tx.value);
+        const time = timeAgo(tx.timestamp);
+        const toAddr = tx.to?.hash || "Contract";
+        const fromAddr = tx.from?.hash || "Unknown";
 
-      document.getElementById("tx-container").innerHTML = `<div class="tx-list">${html}</div>`;
+        return `
+          <div class="tx-item">
+            <div class="tx-icon ${direction}">${direction === "out" ? "↑" : "↓"}</div>
+            <div class="tx-main">
+              <div class="tx-desc">${direction === "out" ? "Paid to " + shortAddr(toAddr) : "Received from " + shortAddr(fromAddr)}</div>
+              <div class="tx-hash">${shortHash(tx.hash)}</div>
+            </div>
+            <div class="tx-right">
+              <div class="tx-amount ${direction}">${direction === "out" ? "-" : "+"}${amount} USDC</div>
+              <div class="tx-time">${time}</div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      document.getElementById("tx-container").innerHTML = `
+        <div class="tx-list">${html}</div>
+        <div style="padding: 12px 16px; text-align: center; border-top: 1px solid var(--border);">
+          <a href="${EXPLORER_BASE}/address/${input}" target="_blank" style="font-size: 12px; color: var(--accent); text-decoration: none;">
+            View full history on Arc Testnet Explorer →
+          </a>
+        </div>
+      `;
 
     } catch (err) {
       showError("Could not load wallet data. (" + err.message + ")");
